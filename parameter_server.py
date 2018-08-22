@@ -22,7 +22,9 @@ class ParameterServer(object):
 
         # learning rate initialization
         batch_baseline = args.baseline
-        self._lr = args.lr * np.sqrt((args.workers_num * args.batch_size) // batch_baseline) / (args.workers_num)
+        self._lr = args.lr * \
+            np.sqrt((args.workers_num * args.batch_size) //
+                    batch_baseline) / (args.workers_num)
         self._fast_im = args.fast_im
         self._lr_warm_up = args.lr_warm_up
         self._current_lr = args.lr
@@ -39,12 +41,15 @@ class ParameterServer(object):
             self._lr_points = [x * alpha for x in self._lr_points]
             print('Regime Adaptation - LR Reduce at {}'.format(self._lr_points))
         if args.fast_im is True:
-            end_lr = args.lr * ((args.workers_num * args.batch_size) // batch_baseline) / np.sqrt(args.workers_num)
+            end_lr = args.lr * ((args.workers_num * args.batch_size) //
+                                batch_baseline) / np.sqrt(args.workers_num)
             start_lr = args.lr / (args.workers_num)
             self._lr = end_lr
             self._start_lr = start_lr
-            self._lr_increment_const = (end_lr - start_lr) / (args.iterations_per_epoch * 5)
-            print('Fast ImageNet Mode - Warm Up [{:.5f}]->[{:.5f}] In 5 Epochs'.format(start_lr, end_lr))
+            self._lr_increment_const = (
+                end_lr - start_lr) / (args.iterations_per_epoch * 5)
+            print(
+                'Fast ImageNet Mode - Warm Up [{:.5f}]->[{:.5f}] In 5 Epochs'.format(start_lr, end_lr))
         else:
             self._start_lr = 0
             self._lr_increment_const = 0
@@ -53,13 +58,14 @@ class ParameterServer(object):
             start_lr = 0
             self._lr = end_lr
             self._start_lr = start_lr
-            print('Learning Rate Warm Up [{:.5f}]->[{:.5f}]'.format(start_lr, end_lr))
+            print(
+                'Learning Rate Warm Up [{:.5f}]->[{:.5f}]'.format(start_lr, end_lr))
 
         self._optimizer = torch.optim.SGD(self._model.parameters(), args.lr,
                                           momentum=args.momentum,
                                           dampening=args.dampening,
                                           nesterov=args.nesterov,
-                                          weight_decay=0)#already done in train --- args.weight_decay)
+                                          weight_decay=0)  # already done in train --- args.weight_decay)
         # # debug dampening
         # self._model_dampening = deepcopy(model)
         # self._optimizer_dampening = torch.optim.SGD(self._model_dampening.parameters(), 1,
@@ -101,9 +107,11 @@ class ParameterServer(object):
                 weight.grad = gradients[name]
 
     def _adjust_learning_rate(self, epoch, iteration):
-        lr = self._start_lr + self._lr_increment_const * (iteration + self._iterations_per_epoch * epoch)
+        lr = self._start_lr + self._lr_increment_const * \
+            (iteration + self._iterations_per_epoch * epoch)
         if lr < self._lr and self._fast_im is True:  # learning rate warm up phase
-            print('\nWarm up Learning Rate Fast ImageNet - [{:.5f}]'.format(lr))
+            print(
+                '\nWarm up Learning Rate Fast ImageNet - [{:.5f}]'.format(lr))
             for param_group in self._optimizer.param_groups:
                 param_group['lr'] = lr
         else:
@@ -121,7 +129,8 @@ class ParameterServer(object):
                     lr *= self._lr_factor ** int(epoch >= r)
                 if self._current_lr != lr:
                     print('Adjusting Learning Rate to [{0:.5f}]'.format(lr))
-                    logging.info('Adjusting Learning Rate to [{0:.5f}]'.format(lr), extra=self._client)
+                    logging.info('Adjusting Learning Rate to [{0:.5f}]'.format(
+                        lr), extra=self._client)
                     self._current_lr = lr
                     for param_group in self._optimizer.param_groups:
                         param_group['lr'] = lr
@@ -138,7 +147,8 @@ class ParameterServer(object):
             self._current_momentum = momentum
             self._lr = 1
             print('Adjusting Momentum to [{0:.3f}]'.format(momentum))
-            logging.info('Adjusting Momentum to [{0:.3f}]'.format(momentum), extra=self._client)
+            logging.info('Adjusting Momentum to [{0:.3f}]'.format(
+                momentum), extra=self._client)
             for param_group in self._optimizer.param_groups:
                 param_group['momentum'] = momentum
             for param_group in self._optimizer.param_groups:
@@ -154,13 +164,14 @@ class ParameterServer(object):
             for worker_id in range(0, self._workers_num):
                 mu_mean[name].add_(self._shards_weights[worker_id][name])
             mu_mean[name].mul_(1 / self._workers_num)
-            mu_mean_norm = mu_mean_norm + mu_mean[name].norm() ** 2
+            mu_mean_norm = mu_mean_norm  + mu_mean[name].norm().cpu() ** 2
         return mu_mean, torch.sqrt(mu_mean_norm)
 
     def _step_norm(self, parameters):
         norm = 0
         for name, weight in self._model.named_parameters():
-            norm += norm + (weight.data.add(parameters[name].data.mul(-1))).norm() ** 2
+            norm += norm + \
+                (weight.data.add(parameters[name].data.mul(-1))).norm() ** 2
         return sqrt(norm)
 
     def push(self, worker_id, parameters, epoch, **kwargs):
@@ -182,7 +193,8 @@ class ParameterServer(object):
         for worker_id in range(0, self._workers_num):
             norm = torch.zeros(1)
             for name in keys:
-                norm.add_(mu_mean[name].add(self._shards_weights[worker_id][name].mul(-1)).norm() ** 2)
+                norm.add_(mu_mean[name].add(
+                    self._shards_weights[worker_id][name].mul(-1)).norm().cpu() ** 2)
             workers_norm_distances_mu.append(torch.sqrt(norm) / mu_mean_norm)
         workers_norm_distances_mu = torch.cat(workers_norm_distances_mu)
         mean_distance = torch.mean(workers_norm_distances_mu)
@@ -197,7 +209,7 @@ class ParameterServer(object):
         norm = torch.zeros(1)
         keys = mu_master.keys()
         for name in keys:
-            norm.add_(mu_mean[name].add(mu_master[name].mul(-1)).norm() ** 2)
+            norm.add_(mu_mean[name].add(mu_master[name].mul(-1)).norm().cpu() ** 2)
         return norm
 
     def get_workers_master_statistics(self):
@@ -208,7 +220,8 @@ class ParameterServer(object):
         for worker_id in range(0, self._workers_num):
             norm = torch.zeros(1)
             for name in keys:
-                norm.add_(mu_master[name].add(self._shards_weights[worker_id][name].mul(-1)).norm() ** 2)
+                norm.add_(mu_master[name].add(
+                    self._shards_weights[worker_id][name].mul(-1)).norm().cpu() ** 2)
             workers_norm_distances_mu.append(torch.sqrt(norm))
         workers_norm_distances_mu = torch.cat(workers_norm_distances_mu)
         mean_distance = torch.mean(workers_norm_distances_mu)
@@ -276,7 +289,8 @@ class EAMSGD(ParameterServer):
         alpha = lr * self._rho
         if kwargs['tau'] % self._tau == 0:
             for name, val in self._master_weights.items():
-                temp = torch.add(self._shards_weights[worker_id][name], -1, val)
+                temp = torch.add(
+                    self._shards_weights[worker_id][name], -1, val)
                 self._shards_weights[worker_id][name].add_(temp.mul_(-alpha))
                 val.add_(temp.mul_(-1))
         self._set_model_weights(self._shards_weights[worker_id])

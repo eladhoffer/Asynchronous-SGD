@@ -279,7 +279,7 @@ def accuracy(output, target, topk=(1,)):
 def save_checkpoint(state, filename='checkpoint.pth.tar', sim_name=''):
     """Saves checkpoint to disk"""
     name = sim_name
-    directory = '/media/drive/niv/backups/%s/' % name
+    directory = '/media/drive/ehoffer/backups/%s/' % name
     if not os.path.exists(directory):
         os.makedirs(directory)
     filename = directory + filename
